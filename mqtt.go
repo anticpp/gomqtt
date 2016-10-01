@@ -59,7 +59,7 @@ func serve_conn(conn net.Conn) {
 	defer conn.Close()
 
 	for {
-		// Read 1'st byte of header
+		// Read 1'st byte of fix header.
 		buf = make([]byte, 1)
 		n, err = conn.Read(buf)
 		if err != nil {
@@ -76,6 +76,19 @@ func serve_conn(conn net.Conn) {
 		header.Retain = int32(0x01 & b)
 
 		fmt.Println(header)
+
+		// Read remaining length.
+		// We try to read the most 4 bytes.
+		buf = make([]byte, 4)
+		n, err = conn.Read(buf)
+		if err != nil {
+			fmt.Println(err)
+			return
+		} else if n == 0 {
+			fmt.Println("Read EOF from conn")
+			return
+		}
+
 		break
 	}
 }
