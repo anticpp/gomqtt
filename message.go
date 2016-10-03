@@ -60,12 +60,13 @@ type fixHeader struct {
 	Length int
 }
 
-func (h *fixHeader) String() string {
-	return fmt.Sprintf("{Type: %v, Dup: %v, Qos: %v, Retain: %v}",
+func (h fixHeader) String() string {
+	return fmt.Sprintf("{Type: %v, Dup: %v, Qos: %v, Retain: %v, Length:%v}",
 		MessageTypeString[h.Type],
 		h.Dup,
 		QosString[h.Qos],
-		h.Retain)
+		h.Retain,
+		h.Length)
 }
 
 // Return:
@@ -73,24 +74,25 @@ func (h *fixHeader) String() string {
 //		    Error - nil  Success,
 //					!nil error.
 func (h *fixHeader) decode(in []byte) (int, error) {
-	/*
-		var err error
 
-		if len(in) == 0 {
-			return ErrorDecodeMore{}
-		}
+	var err error
+	var n int
 
-		b0 := in[0]
-		h.Type = int32(0x0F & (b0 >> 4))
-		h.Dup = int32(0x01 & (b0 >> 3))
-		h.Qos = int32(0x03 & (b0 >> 1))
-		h.Retain = int32(0x01 & b0)
+	if len(in) == 0 {
+		return 0, ErrorDecodeMore{}
+	}
 
-		h.Length, err = decodeVariableInt4(in[1:])
-		if err != nil {
-			return err
-		}*/
-	return 0, nil
+	b0 := in[0]
+	h.Type = int(0x0F & (b0 >> 4))
+	h.Dup = int(0x01 & (b0 >> 3))
+	h.Qos = int(0x03 & (b0 >> 1))
+	h.Retain = int(0x01 & b0)
+
+	h.Length, n, err = decodeVariableInt4(in[1:])
+	if err != nil {
+		return 0, err
+	}
+	return n + 1, nil
 }
 
 type messageConnect struct {
