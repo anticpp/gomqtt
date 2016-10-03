@@ -53,19 +53,23 @@ var MessageTypeString = []string{
 }
 
 type fixHeader struct {
-	Type   int32
-	Dup    int32
-	Qos    int32
-	Retain int32
-	Length int32
+	Type   int
+	Dup    int
+	Qos    int
+	Retain int
+	Length int
 }
 
-func (h fixHeader) String() string {
+func (h *fixHeader) String() string {
 	return fmt.Sprintf("{Type: %v, Dup: %v, Qos: %v, Retain: %v}",
 		MessageTypeString[h.Type],
 		h.Dup,
 		QosString[h.Qos],
 		h.Retain)
+}
+
+func (h *fixHeader) decode(buf []byte) {
+
 }
 
 type messageConnect struct {
