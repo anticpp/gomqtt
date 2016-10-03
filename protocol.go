@@ -10,13 +10,10 @@ const (
 
 // Variable int will be encoded from 1 to 4 bytes.
 //
-// Return: Val, Expecting
-//			Val         - Decode value. Only be meaningful when decoding is completed.
-//						  Which is indecated by 'Expecting'.
-//			Expecting   - Number of bytes expecting.
-//				          Expecting<=len(buf), indicates decoding is completed.
-//				          Expecting>len(buf), indecates decoding is incompleted, more bytes are expecting.
-func decodeVariableInt4(buf []byte) (int, int) {
+// Return: Val, Error
+//			Val         - Decode value.
+//			Error       - ErrorDecodeMore, expecting more.
+func decodeVariableInt4(buf []byte) (int, error) {
 
 	val := 0
 	expecting := 0
@@ -39,13 +36,13 @@ func decodeVariableInt4(buf []byte) (int, int) {
 	}
 
 	if more && expecting < maxVariableIntLength { // Most 4 bytes expecting.
-		expecting++
+		return 0, ErrorDecodeMore{}
 	}
 
-	return val, expecting
+	return val, nil
 }
 
-func encodeVariableInt4(val int, out []byte) []byte {
+func encodeVariableInt4(val int, out []byte) ([]byte, int) {
 
 	l := len(out)
 
@@ -62,10 +59,10 @@ func encodeVariableInt4(val int, out []byte) []byte {
 		out = append(out, byte(digit))
 		n++
 
-		if val <= 0 {
+		if val <= 0 || n >= maxVariableIntLength {
 			break
 		}
 	}
 
-	return out[:l+n]
+	return out[:l+n], n
 }

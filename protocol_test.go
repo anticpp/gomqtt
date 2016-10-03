@@ -9,45 +9,51 @@ func TestDecodeVariableInt4(t *testing.T) {
 	for _, c := range []struct {
 		in        []byte
 		want      int
-		expecting int
+		completed bool
 	}{
-		// Zero
-
 		// Normal bytes.
-		{[]byte{0x00}, 0, 1},
-		{[]byte{0x01}, 1, 1},
-		{[]byte{0x80, 0x01}, 128, 2},
-		{[]byte{0x80, 0x80, 0x01}, 16384, 3},
-		{[]byte{0x80, 0x80, 0x80, 0x01}, 2097152, 4},
+		{[]byte{0x00}, 0, true},
+		{[]byte{0x01}, 1, true},
+		{[]byte{0x80, 0x01}, 128, true},
+		{[]byte{0x80, 0x80, 0x01}, 16384, true},
+		{[]byte{0x80, 0x80, 0x80, 0x01}, 2097152, true},
 
 		// More arbitary bytes at tail.
-		{[]byte{0x00, 0x01}, 0, 1},
-		{[]byte{0x01, 0x01}, 1, 1},
-		{[]byte{0x80, 0x01, 0x01}, 128, 2},
-		{[]byte{0x80, 0x80, 0x01, 0x01}, 16384, 3},
-		{[]byte{0x80, 0x80, 0x80, 0x01, 0x01}, 2097152, 4},
+		{[]byte{0x00, 0x01}, 0, true},
+		{[]byte{0x01, 0x01}, 1, true},
+		{[]byte{0x80, 0x01, 0x01}, 128, true},
+		{[]byte{0x80, 0x80, 0x01, 0x01}, 16384, true},
+		{[]byte{0x80, 0x80, 0x80, 0x01, 0x01}, 2097152, true},
 
 		// Most 4 bytes.
 		// The fifth byte should be ignored, although 'More-Byte' indecates by the 4'st byte.
-		{[]byte{0x80, 0x80, 0x80, 0x81, 0x01}, 2097152, 4},
+		{[]byte{0x80, 0x80, 0x80, 0x81, 0x01}, 2097152, true},
 
-		// Incomplete bytes. Should expecting more.
-		{[]byte{0x80}, -1, 2},
-		{[]byte{0x80, 0x80}, -1, 3},
-		{[]byte{0x80, 0x80, 0x80}, -1, 4},
+		// Incomplete bytes.
+		{[]byte{0x80}, -1, false},
+		{[]byte{0x80, 0x80}, -1, false},
+		{[]byte{0x80, 0x80, 0x80}, -1, false},
 
 		// Randam.
-		{[]byte{0x3A}, 58, 1},
-		{[]byte{0x8F, 0x23}, 4495, 2},
-		{[]byte{0x93, 0xA5, 0x78}, 1970835, 3},
-		{[]byte{0xA6, 0xBF, 0x89, 0x04}, 8544166, 4},
+		{[]byte{0x3A}, 58, true},
+		{[]byte{0x8F, 0x23}, 4495, true},
+		{[]byte{0x93, 0xA5, 0x78}, 1970835, true},
+		{[]byte{0xA6, 0xBF, 0x89, 0x04}, 8544166, true},
 	} {
-		v, expecting := decodeVariableInt4(c.in)
-		if expecting != c.expecting {
-			t.Errorf("Expecting of %v, (want)%v!=(decode)%v.", c.in, c.expecting, expecting)
-		}
-		if expecting <= len(c.in) && v != c.want {
-			t.Errorf("Digit of %v, (want)%v!=(decode)%v.", c.in, c.want, v)
+
+		v, err := decodeVariableInt4(c.in)
+		if c.completed == false {
+			if err == nil {
+				t.Errorf("In %v. Incompleted but decode success.\n", c.in)
+			} else if _, ok := err.(ErrorDecodeMore); !ok {
+				t.Errorf("In %v. Incompleted but decode with error %v. Should be ErrorDecodeMore.\n", err)
+			}
+		} else {
+			if err != nil {
+				t.Errorf("In %v. Decode error %v\n", c.in, err)
+			} else if c.want != v {
+				t.Errorf("In %v, (want)%v!=(decode)%v.", c.in, c.want, v)
+			}
 		}
 	}
 }
@@ -71,7 +77,7 @@ func TestEncodeVariableInt4(t *testing.T) {
 	} {
 
 		buf := make([]byte, 0, 32)
-		buf = encodeVariableInt4(c.in, buf)
+		buf, _ = encodeVariableInt4(c.in, buf)
 		if bytes.Compare(c.want, buf) != 0 {
 			t.Errorf("Encode %v. (want)%v!=(encode)%v.", c.in, c.want, buf)
 		}

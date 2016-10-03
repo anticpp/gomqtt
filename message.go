@@ -68,8 +68,8 @@ func (h *fixHeader) String() string {
 		h.Retain)
 }
 
-func (h *fixHeader) decode(buf []byte) {
-
+func (h *fixHeader) decode(in []byte) error {
+	return nil
 }
 
 type messageConnect struct {
