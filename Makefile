@@ -1,4 +1,3 @@
-
 all:
 	@make dep
 	@make build
@@ -8,7 +7,7 @@ build:
 	go build github.com/anticpp/gomqtt
 
 test:
-	go test github.com/anticpp/gomqtt
+	go test github.com/anticpp/gomqtt -v
 
 
 sync:

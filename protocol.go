@@ -45,13 +45,13 @@ func decodeVariableInt4(buf []byte) (int, int) {
 	return val, expecting
 }
 
-func encodeVariableInt4(val int) []byte {
+func encodeVariableInt4(val int, out []byte) []byte {
+
+	l := len(out)
 
 	digit := 0
-	buf := make([]byte, maxVariableIntLength)
-
-	i := 0
-	for i = 0; i < len(buf) && val > 0; i++ {
+	n := 0
+	for {
 		digit = val % 128
 		val = val / 128
 
@@ -59,8 +59,13 @@ func encodeVariableInt4(val int) []byte {
 			digit |= 0x80
 		}
 
-		buf[i] = byte(digit)
+		out = append(out, byte(digit))
+		n++
+
+		if val <= 0 {
+			break
+		}
 	}
 
-	return buf[:i+1]
+	return out[:l+n]
 }

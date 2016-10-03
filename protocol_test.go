@@ -1,22 +1,27 @@
 package gomqtt
 
 import (
+	"bytes"
 	"testing"
 )
 
-func TestDecodeVariableInt(t *testing.T) {
+func TestDecodeVariableInt4(t *testing.T) {
 	for _, c := range []struct {
 		in        []byte
 		want      int
 		expecting int
 	}{
+		// Zero
+
 		// Normal bytes.
+		{[]byte{0x00}, 0, 1},
 		{[]byte{0x01}, 1, 1},
 		{[]byte{0x80, 0x01}, 128, 2},
 		{[]byte{0x80, 0x80, 0x01}, 16384, 3},
 		{[]byte{0x80, 0x80, 0x80, 0x01}, 2097152, 4},
 
 		// More arbitary bytes at tail.
+		{[]byte{0x00, 0x01}, 0, 1},
 		{[]byte{0x01, 0x01}, 1, 1},
 		{[]byte{0x80, 0x01, 0x01}, 128, 2},
 		{[]byte{0x80, 0x80, 0x01, 0x01}, 16384, 3},
@@ -47,10 +52,28 @@ func TestDecodeVariableInt(t *testing.T) {
 	}
 }
 
-func TestEncodeRemainingLength(t *testing.T) {
+func TestEncodeVariableInt4(t *testing.T) {
+	for _, c := range []struct {
+		in   int
+		want []byte
+	}{
+		{0, []byte{0x00}},
+		{1, []byte{0x01}},
+		{128, []byte{0x80, 0x01}},
+		{16384, []byte{0x80, 0x80, 0x01}},
+		{2097152, []byte{0x80, 0x80, 0x80, 0x01}},
 
-}
+		// Randam.
+		{58, []byte{0x3A}},
+		{4495, []byte{0x8F, 0x23}},
+		{1970835, []byte{0x93, 0xA5, 0x78}},
+		{8544166, []byte{0xA6, 0xBF, 0x89, 0x04}},
+	} {
 
-func TestEncodeAndDecodeRemainingLength(t *testing.T) {
-
+		buf := make([]byte, 0, 32)
+		buf = encodeVariableInt4(c.in, buf)
+		if bytes.Compare(c.want, buf) != 0 {
+			t.Errorf("Encode %v. (want)%v!=(encode)%v.", c.in, c.want, buf)
+		}
+	}
 }
