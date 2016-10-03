@@ -68,8 +68,29 @@ func (h *fixHeader) String() string {
 		h.Retain)
 }
 
-func (h *fixHeader) decode(in []byte) error {
-	return nil
+// Return:
+//		 	Bytes - Byte length when success.
+//		    Error - nil  Success,
+//					!nil error.
+func (h *fixHeader) decode(in []byte) (int, error) {
+	/*
+		var err error
+
+		if len(in) == 0 {
+			return ErrorDecodeMore{}
+		}
+
+		b0 := in[0]
+		h.Type = int32(0x0F & (b0 >> 4))
+		h.Dup = int32(0x01 & (b0 >> 3))
+		h.Qos = int32(0x03 & (b0 >> 1))
+		h.Retain = int32(0x01 & b0)
+
+		h.Length, err = decodeVariableInt4(in[1:])
+		if err != nil {
+			return err
+		}*/
+	return 0, nil
 }
 
 type messageConnect struct {
