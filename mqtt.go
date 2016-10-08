@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net"
+	"time"
 )
 
 type Context struct {
@@ -40,67 +41,97 @@ func (c *Context) Loop() error {
 			continue
 		}
 
-		go serve_conn(conn)
+		fmt.Println(conn.LocalAddr())
+		fmt.Println(conn.RemoteAddr())
 
+		session := newSession(conn)
+		go serve_read(session)
+		//go serve_write(session)
+		go serve_message(session)
+		//go serve_state(session)
 	}
 
 	return nil
 }
 
-func serve_conn(conn net.Conn) {
+func serve_read(session *sessionType) {
 	var n int
 	var err error
 
-	// Read fix header
-	fmt.Println(conn.LocalAddr())
-	fmt.Println(conn.RemoteAddr())
-	defer conn.Close()
+	conn := session.conn
 
-	for {
+	readBuf := bytes.NewBuffer(make([]byte, 0, 4*1024))
+	tmpBuf := make([]byte, 1024)
+	for session.Normal() {
 
-		rbuf := bytes.NewBuffer(make([]byte, 0, 4*1024))
-		for {
-			header := fixHeader{}
-
-			// Read fix header
-			tmpb := make([]byte, 128)
-			for {
-				n, err = conn.Read(tmpb)
-				if err != nil {
-					fmt.Println(err)
-					return
-				} else if n == 0 {
-					fmt.Println("Read EOF from conn")
-					return
-				}
-				fmt.Printf("Read %v bytes\n", n)
-
-				// Append to read buffer
-				rbuf.Write(tmpb[:n])
-
-				n, err = header.decode(rbuf.Bytes())
-				if err != nil {
-					if _, ok := err.(ErrorDecodeMore); !ok {
-						fmt.Println(err)
-						return
-					}
-
-					// Read more
-					continue
-				}
-
-				fmt.Printf("Decode success, n %v\n", n)
-
-				// Read fix header complete
-				rbuf.Truncate(n)
-				break
+		conn.SetReadDeadline(time.Now().Add(time.Duration(5) * time.Second))
+		n, err = conn.Read(tmpBuf)
+		if err != nil {
+			nerr, ok := err.(*net.OpError)
+			if !(ok && nerr.Timeout()) {
+				session.Close()
 			}
+			fmt.Println(err)
 
-			fmt.Println("Read header: ")
-			fmt.Println(header)
+			continue
+		}
+
+		fmt.Printf("Read %v bytes\n", n)
+		readBuf.Write(tmpBuf[:n])
+
+		err = process_input(session, readBuf)
+		if err != nil {
+			fmt.Println(err)
 			break
 		}
 
-		break
 	}
+}
+
+func process_input(session *sessionType, readBuf *bytes.Buffer) error {
+
+	var n int
+	var err error
+	for {
+		message := messageRaw{}
+		n, err = message.header.decode(readBuf.Bytes())
+		if err != nil {
+			_, ok := err.(ErrorDecodeMore)
+			if ok {
+				return nil
+			}
+			return err
+		}
+		fmt.Printf("Header size %v\n", n)
+		readBuf.Next(n)
+
+		fmt.Println("Header: ")
+		fmt.Println(message.header)
+		fmt.Printf("Remaining %v\n", readBuf.Len())
+
+		if readBuf.Len() < message.header.Length {
+			return nil
+		}
+
+		message.payload = make([]byte, message.header.Length)
+		readBuf.Read(message.payload)
+		fmt.Printf("Payload: %v\n", len(message.payload))
+
+		session.cmsg <- message
+	}
+}
+
+func serve_message(session *sessionType) {
+
+	for {
+		raw := <-session.cmsg
+
+		fmt.Println("serve message: ")
+		fmt.Println(raw)
+	}
+
+}
+
+func serve_state(session *sessionType) {
+
 }

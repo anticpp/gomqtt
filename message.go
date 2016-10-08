@@ -52,6 +52,11 @@ var MessageTypeString = []string{
 	"Reserved",
 }
 
+type messageType interface {
+	decode(payload []byte) (int, error)
+	encode(payload []byte) (int, error)
+}
+
 type fixHeader struct {
 	Type   int
 	Dup    int
@@ -67,6 +72,10 @@ func (h fixHeader) String() string {
 		QosString[h.Qos],
 		h.Retain,
 		h.Length)
+}
+
+func (h fixHeader) TypeName() string {
+	return MessageTypeString[h.Type]
 }
 
 // Return:
@@ -88,15 +97,25 @@ func (h *fixHeader) decode(in []byte) (int, error) {
 	h.Qos = int(0x03 & (b0 >> 1))
 	h.Retain = int(0x01 & b0)
 
-	h.Length, n, err = decodeVariableInt4(in[1:])
+	h.Length, n, err = decodeVariableInt32(in[1:])
 	if err != nil {
 		return 0, err
 	}
 	return n + 1, nil
 }
 
-type messageConnect struct {
+type messageRaw struct {
+	header  fixHeader
+	payload []byte
 }
 
-type messageConnectAck struct {
+type messageConnect struct {
+	header fixHeader
+}
+
+func (m *messageConnect) decode(payload []byte) (int, error) {
+	return 0, nil
+}
+func (m *messageConnect) encode(payload []byte) (int, error) {
+	return 0, nil
 }
