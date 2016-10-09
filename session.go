@@ -5,22 +5,22 @@ import (
 )
 
 const (
-	SessionStateConnect       = 0
-	SessionStateConnectFinish = 1
+	SessionStateNew     = 0
+	SessionStateConnect = 1
 )
 
 type sessionType struct {
-	conn  net.Conn
-	state int
-	close bool
-	cmsg  chan messageRaw // Income message
+	conn      net.Conn
+	state     int
+	close     bool
+	inMessage chan messageRaw // Income message
 }
 
 func newSession(conn net.Conn) *sessionType {
 	return &sessionType{conn: conn,
-		state: SessionStateConnect,
-		close: false,
-		cmsg:  make(chan messageRaw, 100)}
+		state:     SessionStateConnect,
+		close:     false,
+		inMessage: make(chan messageRaw, 100)}
 }
 
 func (s *sessionType) Normal() bool {
