@@ -249,3 +249,51 @@ func TestEncodeString(t *testing.T) {
 
 	}
 }
+
+func TestFixHeaderEncodeDecode(t *testing.T) {
+	for _, c := range []fixHeader{
+		fixHeader{Type: 0, Dup: 0, Qos: 0, Retain: 0},
+		fixHeader{Type: 4, Dup: 0, Qos: 0, Retain: 0},
+		fixHeader{Type: 0, Dup: 1, Qos: 0, Retain: 0},
+		fixHeader{Type: 0, Dup: 0, Qos: 1, Retain: 0},
+		fixHeader{Type: 0, Dup: 0, Qos: 0, Retain: 1},
+		fixHeader{Type: 4, Dup: 1, Qos: 2, Retain: 1},
+	} {
+		var n int
+		var err error
+
+		out := make([]byte, 0, 32)
+		out, n, err = c.encode(out)
+		if err != nil {
+			t.Fatalf("Encode fail. %v", c)
+		}
+
+		c1 := fixHeader{}
+		var n1 int
+		n1, err = c1.decode(out)
+		if err != nil {
+			t.Fatalf("Decode fail. %v", c)
+		}
+
+		if n != n1 {
+			t.Fatalf("Encode size %v!=Decode size %v. %v", n, n1, c)
+		}
+
+		if c.Type != c1.Type {
+			t.Fatalf("Encode type %v!=Decode type %v. %v", c.Type, c1.Type, c)
+		}
+
+		if c.Dup != c1.Dup {
+			t.Fatalf("Encode Dup %v!=Decode Dup %v. %v", c.Dup, c1.Dup, c)
+		}
+
+		if c.Qos != c1.Qos {
+			t.Fatalf("Encode Qos %v!=Decode Qos %v. %v", c.Qos, c1.Qos, c)
+		}
+
+		if c.Retain != c1.Retain {
+			t.Fatalf("Encode Retain %v!=Decode Retain %v. %v", c.Retain, c1.Retain, c)
+		}
+
+	}
+}

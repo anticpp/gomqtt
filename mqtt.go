@@ -44,11 +44,6 @@ func (c *Context) Loop() error {
 		fmt.Println(conn.LocalAddr())
 		fmt.Println(conn.RemoteAddr())
 
-		//session := newSession(conn)
-		//go serve_read(session)
-		//go serve_write(session)
-		//go serve_message(session)
-		//go serve_state(session)
 		go serve_connect(conn)
 	}
 
@@ -123,6 +118,15 @@ func serve_connect(conn net.Conn) {
 	fmt.Println("Connect Success:")
 	fmt.Println(message)
 	fmt.Printf("Remaining buffer %v", readBuf.Len())
+
+	// FIXME: ConnectAck
+
+	session := newSession(conn, *message)
+	if readBuf.Len() > 0 {
+		session.readBuff.Write(readBuf.Bytes())
+	}
+
+	go serve_read(session)
 }
 
 func serve_read(session *sessionType) {
@@ -131,16 +135,22 @@ func serve_read(session *sessionType) {
 
 	conn := session.conn
 
-	readBuf := bytes.NewBuffer(make([]byte, 0, 4*1024))
 	tmpBuf := make([]byte, 1024)
-	for session.Normal() {
+	for session.normal() {
+
+		err = process_input(session)
+		if err != nil {
+			fmt.Println(err)
+			session.close()
+			continue
+		}
 
 		conn.SetReadDeadline(time.Now().Add(time.Duration(5) * time.Second))
 		n, err = conn.Read(tmpBuf)
 		if err != nil {
 			nerr, ok := err.(*net.OpError)
 			if !(ok && nerr.Timeout()) {
-				session.Close()
+				session.close()
 			}
 			fmt.Println(err)
 
@@ -148,25 +158,17 @@ func serve_read(session *sessionType) {
 		}
 
 		fmt.Printf("Read %v bytes\n", n)
-		readBuf.Write(tmpBuf[:n])
-
-		err = process_input(session, readBuf)
-		if err != nil {
-			fmt.Println(err)
-			session.Close()
-			continue
-		}
-
+		session.readBuff.Write(tmpBuf[:n])
 	}
 }
 
-func process_input(session *sessionType, readBuf *bytes.Buffer) error {
+func process_input(session *sessionType) error {
 
 	var n int
 	var err error
 	for {
 		message := messageRaw{}
-		n, err = message.header.decode(readBuf.Bytes())
+		n, err = message.header.decode(session.readBuff.Bytes())
 		if err != nil {
 			_, ok := err.(ErrorDecodeMore)
 			if ok {
@@ -175,18 +177,18 @@ func process_input(session *sessionType, readBuf *bytes.Buffer) error {
 			return err
 		}
 		fmt.Printf("Header size %v\n", n)
-		readBuf.Next(n)
+		session.readBuff.Next(n)
 
 		fmt.Println("Header: ")
 		fmt.Println(message.header)
-		fmt.Printf("Remaining %v\n", readBuf.Len())
+		fmt.Printf("Remaining %v\n", session.readBuff.Len())
 
-		if readBuf.Len() < message.header.Length {
+		if session.readBuff.Len() < message.header.Length {
 			return nil
 		}
 
 		message.payload = make([]byte, message.header.Length)
-		readBuf.Read(message.payload)
+		session.readBuff.Read(message.payload)
 		fmt.Printf("Payload: %v\n", len(message.payload))
 
 		session.inMessage <- message
@@ -203,7 +205,7 @@ func serve_message(session *sessionType) {
 			message = &messageConnect{}
 		} else {
 			fmt.Println("Unsupport message %v", raw.header.Type)
-			session.Close()
+			session.close()
 			break
 		}
 		message.setHeader(raw.header)

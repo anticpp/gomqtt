@@ -54,8 +54,8 @@ var MessageTypeString = []string{
 
 type messageType interface {
 	setHeader(h fixHeader)
-	decode(payload []byte) (int, error)
-	encode(payload []byte) (int, error)
+	decode(in []byte) (int, error)
+	encode(out []byte) ([]byte, int, error)
 	String() string
 }
 
@@ -105,6 +105,24 @@ func (h *fixHeader) decode(in []byte) (int, error) {
 	}
 	return n + 1, nil
 }
+func (h *fixHeader) encode(out []byte) ([]byte, int, error) {
+	var n int
+	var err error
+
+	b0 := byte(0)
+	b0 = byte((h.Type&0x0F)<<4 |
+		(h.Dup&0x01)<<3 |
+		(h.Qos&0x03)<<1 |
+		(h.Retain & 0x01))
+
+	out = append(out, b0)
+
+	out, n, err = encodeVariableInt32(h.Length, out)
+	if err != nil {
+		return nil, 0, err
+	}
+	return out, n + 1, nil
+}
 
 // Message with raw payload.
 type messageRaw struct {
@@ -138,25 +156,25 @@ func (m *messageConnect) String() string {
 		m.name, m.level, m.flagUserName, m.flagPassword, m.flagWillRetain, m.flagWillQos, m.flagWillFlag, m.flagCleanSession, m.keepAlive)
 	return s
 }
-func (m *messageConnect) decode(payload []byte) (int, error) {
+func (m *messageConnect) decode(in []byte) (int, error) {
 	var n int
 	var err error
 	var decodeLen = 0
 
-	m.name, n, err = decodeString(payload)
+	m.name, n, err = decodeString(in)
 	if err != nil {
 		return 0, err
 	}
-	payload = payload[n:]
+	in = in[n:]
 	decodeLen += n
 
-	if len(payload) < 2 {
+	if len(in) < 2 {
 		return 0, ErrorDecodeMore{}
 	}
-	m.level = int(payload[0])
-	flags := int(payload[1])
+	m.level = int(in[0])
+	flags := int(in[1])
 
-	payload = payload[2:]
+	in = in[2:]
 	decodeLen += 2
 
 	m.flagUserName = ((flags >> 7) & 0x01)
@@ -166,7 +184,7 @@ func (m *messageConnect) decode(payload []byte) (int, error) {
 	m.flagWillFlag = ((flags >> 2) & 0x01)
 	m.flagCleanSession = ((flags >> 1) & 0x01)
 
-	m.keepAlive, n, err = decodeInt16(payload)
+	m.keepAlive, n, err = decodeInt16(in)
 	if err != nil {
 		return 0, nil
 	}
@@ -174,6 +192,26 @@ func (m *messageConnect) decode(payload []byte) (int, error) {
 
 	return decodeLen, nil
 }
-func (m *messageConnect) encode(payload []byte) (int, error) {
+func (m *messageConnect) encode(out []byte) ([]byte, int, error) {
+	panic("Don't used.")
+	return nil, 0, nil
+}
+
+// ConnectAck
+type messageConnectAck struct {
+	header         fixHeader
+	sessionPresent int
+	returnCode     int
+}
+
+func (m *messageConnectAck) decoe(in []byte) (int, error) {
+	panic("Don't used.")
 	return 0, nil
+}
+func (m *messageConnectAck) encode(out []byte) ([]byte, int, error) {
+	b0 := byte(m.sessionPresent & 0x01)
+	b1 := byte(m.returnCode & 0xFF)
+	out = append(out, b0)
+	out = append(out, b1)
+	return out, 2, nil
 }
