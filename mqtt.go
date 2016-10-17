@@ -81,10 +81,17 @@ func serve_connect(conn net.Conn) {
 		}
 
 		// Read complete
+		fmt.Printf("Header decode len %v\n", n)
 		readBuf.Next(n)
 		break
 
 	}
+
+	if errorOccur {
+		conn.Close()
+		return
+	}
+
 	message.setHeader(header)
 
 	// Read payload
@@ -110,9 +117,11 @@ func serve_connect(conn net.Conn) {
 
 	n, err = message.decode(payload)
 	if err != nil {
+		fmt.Println("Decode message error")
 		conn.Close()
 		return
 	}
+	fmt.Printf("Payload decode len %v\n", n)
 
 	// Connect success
 	fmt.Println("Connect Success:")

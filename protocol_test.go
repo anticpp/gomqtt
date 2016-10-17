@@ -249,6 +249,50 @@ func TestEncodeString(t *testing.T) {
 
 	}
 }
+func TestDecodeRawData(t *testing.T) {
+
+	for _, c := range []struct {
+		in   []byte
+		want []byte
+	}{
+		{[]byte{0x00, 0x00}, []byte{}},
+		{[]byte{0x00, 0x05, 'h', 'e', 'l', 'l', 'o'}, []byte{'h', 'e', 'l', 'l', 'o'}},
+		{[]byte{0x00, 0x05, 'h', 'e', 'l', 'l', 'o', 'x', 'x'}, []byte{'h', 'e', 'l', 'l', 'o'}},
+	} {
+		out, _, err := decodeRawData(c.in)
+		if err != nil {
+			t.Fatalf("Decode fail. %v", c.in)
+		}
+
+		if bytes.Compare(c.want, out) != 0 {
+			t.Fatalf("Decode fail. (want)%v!=(decode)%v", c.want, out)
+		}
+
+	}
+}
+func TestEncodeRawData(t *testing.T) {
+
+	for _, c := range []struct {
+		in   []byte
+		want []byte
+	}{
+		{[]byte{}, []byte{0x00, 0x00}},
+		{[]byte{'h', 'e', 'l', 'l', 'o'}, []byte{0x00, 0x05, 'h', 'e', 'l', 'l', 'o'}},
+	} {
+		var err error
+
+		out := make([]byte, 0, 32)
+		out, _, err = encodeRawData(c.in, out)
+		if err != nil {
+			t.Fatalf("Encode fail. %v", c.in)
+		}
+
+		if bytes.Compare(c.want, out) != 0 {
+			t.Fatalf("Encode fail. (want)%v!=(decode)%v", c.want, out)
+		}
+
+	}
+}
 
 func TestFixHeaderEncodeDecode(t *testing.T) {
 	for _, c := range []fixHeader{

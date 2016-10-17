@@ -139,3 +139,30 @@ func encodeString(s string, out []byte) ([]byte, int, error) {
 	out = append(out, []byte(s)...)
 	return out, l + n, nil
 }
+
+func decodeRawData(in []byte) ([]byte, int, error) {
+	out := make([]byte, 0)
+	l, n, err := decodeInt16(in)
+	if err != nil {
+		return nil, 0, err
+	}
+	if l > len(in)-n {
+		l = len(in) - n
+	}
+	out = append(out, in[n:n+l]...)
+	return out, l + n, nil
+}
+
+func encodeRawData(in []byte, out []byte) ([]byte, int, error) {
+	var n int
+	var err error
+
+	l := len(in)
+	out, n, err = encodeInt16(l, out)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	out = append(out, in...)
+	return out, l + n, nil
+}

@@ -54,8 +54,8 @@ var MessageTypeString = []string{
 
 type messageType interface {
 	setHeader(h fixHeader)
-	decode(in []byte) (int, error)
-	encode(out []byte) ([]byte, int, error)
+	decode(in []byte) (int, error)          // Decode payload
+	encode(out []byte) ([]byte, int, error) // Encode payload
 	String() string
 }
 
@@ -142,6 +142,12 @@ type messageConnect struct {
 	flagWillFlag     int
 	flagCleanSession int
 	keepAlive        int
+
+	clientId    string
+	willTopic   string
+	willMessage []byte
+	userName    string
+	password    string
 }
 
 func (m *messageConnect) setHeader(h fixHeader) {
@@ -152,8 +158,21 @@ func (m *messageConnect) String() string {
 	s := "FixHeader: "
 	s += m.header.String()
 	s += ", Variable Header: "
-	s += fmt.Sprintf("{ Name: %v, Level: %v, Flags: (UserName %v, Password %v, WillRetail %v, WillQos: %v, WillFlag: %v, CleanSession: %v ), KeepAlive: %v }",
-		m.name, m.level, m.flagUserName, m.flagPassword, m.flagWillRetain, m.flagWillQos, m.flagWillFlag, m.flagCleanSession, m.keepAlive)
+	s += fmt.Sprintf("{ Name: %v, Level: %v, Flags: (UserName %v, Password %v, WillRetail %v, WillQos: %v, WillFlag: %v, CleanSession: %v ), KeepAlive: %v , ClientId: %v, willTopic; %v, willMessage: len(%v), Username: %v, Password: %v}",
+		m.name,
+		m.level,
+		m.flagUserName,
+		m.flagPassword,
+		m.flagWillRetain,
+		m.flagWillQos,
+		m.flagWillFlag,
+		m.flagCleanSession,
+		m.keepAlive,
+		m.clientId,
+		m.willTopic,
+		len(m.willMessage),
+		m.userName,
+		m.password)
 	return s
 }
 func (m *messageConnect) decode(in []byte) (int, error) {
@@ -161,22 +180,21 @@ func (m *messageConnect) decode(in []byte) (int, error) {
 	var err error
 	var decodeLen = 0
 
+	// Name
 	m.name, n, err = decodeString(in)
 	if err != nil {
 		return 0, err
 	}
+
 	in = in[n:]
 	decodeLen += n
 
+	// Level, Flags
 	if len(in) < 2 {
 		return 0, ErrorDecodeMore{}
 	}
 	m.level = int(in[0])
 	flags := int(in[1])
-
-	in = in[2:]
-	decodeLen += 2
-
 	m.flagUserName = ((flags >> 7) & 0x01)
 	m.flagPassword = ((flags >> 6) & 0x01)
 	m.flagWillRetain = ((flags >> 5) & 0x01)
@@ -184,11 +202,64 @@ func (m *messageConnect) decode(in []byte) (int, error) {
 	m.flagWillFlag = ((flags >> 2) & 0x01)
 	m.flagCleanSession = ((flags >> 1) & 0x01)
 
+	in = in[2:]
+	decodeLen += 2
+
+	// KeepAlive
 	m.keepAlive, n, err = decodeInt16(in)
 	if err != nil {
 		return 0, nil
 	}
+	in = in[n:]
 	decodeLen += n
+
+	// Client Id
+	m.clientId, n, err = decodeString(in)
+	if err != nil {
+		return 0, nil
+	}
+	in = in[n:]
+	decodeLen += n
+
+	// Will Topic, Will Message
+	if m.flagWillFlag == 1 {
+
+		m.willTopic, n, err = decodeString(in)
+		if err != nil {
+			return 0, nil
+		}
+		in = in[n:]
+		decodeLen += n
+
+		m.willMessage, n, err = decodeRawData(in)
+		if err != nil {
+			return 0, nil
+		}
+		in = in[n:]
+		decodeLen += n
+	}
+
+	// Username
+	if m.flagUserName == 1 {
+
+		m.userName, n, err = decodeString(in)
+		if err != nil {
+			return 0, nil
+		}
+		in = in[n:]
+		decodeLen += n
+	}
+
+	// Password
+	if m.flagPassword == 1 {
+
+		m.password, n, err = decodeString(in)
+		if err != nil {
+			return 0, nil
+		}
+		in = in[n:]
+		decodeLen += n
+	}
 
 	return decodeLen, nil
 }
