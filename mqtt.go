@@ -51,8 +51,10 @@ func (c *Context) Loop() error {
 }
 
 func serve_connect(conn net.Conn) {
-	var message = new(messageConnect)
+
+	var connectReq = newMessageConnect()
 	var n int
+	var headerSize int
 	var err error
 	var errorOccur bool = false
 
@@ -71,7 +73,7 @@ func serve_connect(conn net.Conn) {
 		}
 		readBuf.Write(tmpBuf[:n])
 
-		n, err = header.decode(readBuf.Bytes())
+		headerSize, err = header.decode(readBuf.Bytes())
 		if err != nil {
 			_, ok := err.(ErrorDecodeMore)
 			if !ok {
@@ -80,11 +82,8 @@ func serve_connect(conn net.Conn) {
 			continue
 		}
 
-		// Read complete
-		fmt.Printf("Header decode len %v\n", n)
-		readBuf.Next(n)
+		// Success
 		break
-
 	}
 
 	if errorOccur {
@@ -92,32 +91,28 @@ func serve_connect(conn net.Conn) {
 		return
 	}
 
-	message.setHeader(header)
+	fmt.Printf("Header decode len %v\n", headerSize)
+	readBuf.Next(headerSize)
 
-	// Read payload
-	for !errorOccur && readBuf.Len() < header.Length {
+	connectReq.setHeader(header)
 
-		conn.SetReadDeadline(time.Now().Add(time.Duration(5) * time.Second))
-		n, err = conn.Read(tmpBuf)
-		if err != nil {
-			errorOccur = true
-			continue
-		}
-		readBuf.Write(tmpBuf[:n])
-
-	}
-
-	if errorOccur {
-		conn.Close()
-		return
-	}
-
+	// Read remaining payload
 	payload := make([]byte, header.Length)
-	readBuf.Read(payload)
+	n, _ = readBuf.Read(payload)
+	fmt.Printf("Now payload size %v, Remaining %v\n", n, header.Length-n)
+	if header.Length-n > 0 {
 
-	n, err = message.decode(payload)
+		err = readConnTotal(conn, payload[n:], 5)
+		if err != nil {
+			fmt.Println("Read remaining payload fail")
+			conn.Close()
+			return
+		}
+	}
+
+	n, err = connectReq.decodePayload(payload)
 	if err != nil {
-		fmt.Println("Decode message error")
+		fmt.Println("Decode connect error")
 		conn.Close()
 		return
 	}
@@ -125,12 +120,28 @@ func serve_connect(conn net.Conn) {
 
 	// Connect success
 	fmt.Println("Connect Success:")
-	fmt.Println(message)
-	fmt.Printf("Remaining buffer %v", readBuf.Len())
+	fmt.Println(connectReq)
 
-	// FIXME: ConnectAck
+	// Response
 
-	session := newSession(conn, *message)
+	connectAck := newMessageConnectAck()
+	var respBuff []byte
+	respBuff, err = connectAck.encode(nil)
+	if err != nil {
+		fmt.Println("Encode connectAck error")
+		conn.Close()
+		return
+	}
+	fmt.Printf("Resp connectAck message len %v\n", len(respBuff))
+	err = writeConnTotal(conn, respBuff, 5)
+	if err != nil {
+		fmt.Println("write connectAck error")
+		conn.Close()
+		return
+	}
+
+	session := newSession(conn, *connectReq)
+	fmt.Printf("Remaining buffer %v, keep in session if some.\n", readBuf.Len())
 	if readBuf.Len() > 0 {
 		session.readBuff.Write(readBuf.Bytes())
 	}
@@ -176,7 +187,7 @@ func process_input(session *sessionType) error {
 	var n int
 	var err error
 	for {
-		message := messageRaw{}
+		message := newMessageRaw()
 		n, err = message.header.decode(session.readBuff.Bytes())
 		if err != nil {
 			_, ok := err.(ErrorDecodeMore)
@@ -188,8 +199,7 @@ func process_input(session *sessionType) error {
 		fmt.Printf("Header size %v\n", n)
 		session.readBuff.Next(n)
 
-		fmt.Println("Header: ")
-		fmt.Println(message.header)
+		fmt.Println("Header: ", message.header)
 		fmt.Printf("Remaining %v\n", session.readBuff.Len())
 
 		if session.readBuff.Len() < message.header.Length {
@@ -209,23 +219,8 @@ func serve_message(session *sessionType) {
 	for {
 		raw := <-session.inMessage
 
-		var message messageType
-		if raw.header.Type == MessageTypeConnect {
-			message = &messageConnect{}
-		} else {
-			fmt.Println("Unsupport message %v", raw.header.Type)
-			session.close()
-			break
-		}
-		message.setHeader(raw.header)
-		message.decode(raw.payload)
-		fmt.Println("serve message: ", message)
-		//fmt.Println(raw)
+		fmt.Println("serve message: ", raw)
 
 	}
-
-}
-
-func serve_state(session *sessionType) {
 
 }

@@ -42,36 +42,34 @@ func decodeVariableInt32(in []byte) (int, int, error) {
 	return val, length, nil
 }
 
-// Maximum val 268435455.
-// If the input value is greater than maximum, the result will be no guarantee.
-//
 // Return: buf, N, Error
 //			buf         - Encode buffer.
-//			N		    - Encode length.
 //			Error       - !nil             Success
 //						  nil              Error
-func encodeVariableInt32(val int, out []byte) ([]byte, int, error) {
+func encodeVariableInt32(val int, out []byte) ([]byte, error) {
+
+	if out == nil {
+		out = make([]byte, 0)
+	}
 
 	digit := 0
-	n := 0
 	for {
-		n++
 
 		digit = val % 128
 		val = val / 128
 
-		if val > 0 && n < maxVariableIntLength { // Most 'maxVariableIntLength' should be encoded.
+		if val > 0 && len(out) < maxVariableIntLength { // Most 'maxVariableIntLength' should be encoded.
 			digit |= 0x80
 		}
 
 		out = append(out, byte(digit))
 
-		if val <= 0 || n >= maxVariableIntLength {
+		if val <= 0 || len(out) >= maxVariableIntLength {
 			break
 		}
 	}
 
-	return out, n, nil
+	return out, nil
 }
 
 // Return: Val, N, Error
@@ -92,15 +90,19 @@ func decodeInt16(in []byte) (int, int, error) {
 
 // Return: buf, N, Error
 //			buf         - Encode buffer.
-//			N		    - Encode length.
 //			Error       - !nil             Success
 //						  nil              Error
-func encodeInt16(val int, out []byte) ([]byte, int, error) {
+func encodeInt16(val int, out []byte) ([]byte, error) {
+
+	if out == nil {
+		out = make([]byte, 0)
+	}
+
 	b0 := (val >> 8) & 0x00FF
 	b1 := val & 0x00FF
 	out = append(out, byte(b0))
 	out = append(out, byte(b1))
-	return out, 2, nil
+	return out, nil
 }
 
 // Return: S, N, Error
@@ -123,21 +125,24 @@ func decodeString(in []byte) (string, int, error) {
 
 // Return: buf, N, Error
 //			buf         - Encode buffer.
-//			N		    - Encode length.
 //			Error       - !nil             Success
 //						  nil              Error
-func encodeString(s string, out []byte) ([]byte, int, error) {
-	var n int
+func encodeString(s string, out []byte) ([]byte, error) {
+
+	if out == nil {
+		out = make([]byte, 0)
+	}
+
 	var err error
 
 	l := len(s)
-	out, n, err = encodeInt16(l, out)
+	out, err = encodeInt16(l, out)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	out = append(out, []byte(s)...)
-	return out, l + n, nil
+	return out, nil
 }
 
 func decodeRawData(in []byte) ([]byte, int, error) {
@@ -153,16 +158,20 @@ func decodeRawData(in []byte) ([]byte, int, error) {
 	return out, l + n, nil
 }
 
-func encodeRawData(in []byte, out []byte) ([]byte, int, error) {
-	var n int
+func encodeRawData(in []byte, out []byte) ([]byte, error) {
+
+	if out == nil {
+		out = make([]byte, 0)
+	}
+
 	var err error
 
 	l := len(in)
-	out, n, err = encodeInt16(l, out)
+	out, err = encodeInt16(l, out)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	out = append(out, in...)
-	return out, l + n, nil
+	return out, nil
 }

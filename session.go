@@ -15,7 +15,7 @@ type sessionType struct {
 	connectInfo messageConnect
 	readBuff    *bytes.Buffer
 	errorOccur  bool
-	inMessage   chan messageRaw // Incoming message
+	inMessage   chan *messageRaw // Incoming message
 }
 
 func newSession(conn net.Conn, message messageConnect) *sessionType {
@@ -23,7 +23,7 @@ func newSession(conn net.Conn, message messageConnect) *sessionType {
 		connectInfo: message,
 		readBuff:    bytes.NewBuffer(make([]byte, 0, READ_BUFFER_CAP)),
 		errorOccur:  false,
-		inMessage:   make(chan messageRaw, INCOME_CHAN_SIZE)}
+		inMessage:   make(chan *messageRaw, INCOME_CHAN_SIZE)}
 }
 
 func (s *sessionType) normal() bool {

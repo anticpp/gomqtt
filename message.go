@@ -52,11 +52,19 @@ var MessageTypeString = []string{
 	"Reserved",
 }
 
+const (
+	ConnectCodeOk                    = 0x00
+	ConnectCodeRefuseProtocolVersion = 0x01
+	ConnectCodeRefuseClientId        = 0x02
+	ConnectCodeRefuseUnavailable     = 0x03
+	ConnectCodeBadUsernameOrPassword = 0x04
+	ConnectCodeNotAuthorized         = 0x05
+)
+
 type messageType interface {
 	setHeader(h fixHeader)
-	decode(in []byte) (int, error)          // Decode payload
-	encode(out []byte) ([]byte, int, error) // Encode payload
-	String() string
+	decodePayload(in []byte) (int, error) // Decode payload
+	encode(out []byte) ([]byte, error)    // Encode header & payload
 }
 
 type fixHeader struct {
@@ -68,7 +76,7 @@ type fixHeader struct {
 }
 
 func (h fixHeader) String() string {
-	return fmt.Sprintf("{Type: %v, Dup: %v, Qos: %v, Retain: %v, Length:%v}",
+	return fmt.Sprintf("FixHeader {Type: %v, Dup: %v, Qos: %v, Retain: %v, Length:%v}",
 		MessageTypeString[h.Type],
 		h.Dup,
 		QosString[h.Qos],
@@ -105,29 +113,35 @@ func (h *fixHeader) decode(in []byte) (int, error) {
 	}
 	return n + 1, nil
 }
-func (h *fixHeader) encode(out []byte) ([]byte, int, error) {
-	var n int
+func (h *fixHeader) encode(out []byte) ([]byte, error) {
+
+	if out == nil {
+		out = make([]byte, 0)
+	}
+
 	var err error
 
-	b0 := byte(0)
-	b0 = byte((h.Type&0x0F)<<4 |
+	b0 := byte((h.Type&0x0F)<<4 |
 		(h.Dup&0x01)<<3 |
 		(h.Qos&0x03)<<1 |
 		(h.Retain & 0x01))
-
 	out = append(out, b0)
 
-	out, n, err = encodeVariableInt32(h.Length, out)
+	out, err = encodeVariableInt32(h.Length, out)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
-	return out, n + 1, nil
+	return out, nil
 }
 
 // Message with raw payload.
 type messageRaw struct {
 	header  fixHeader
 	payload []byte
+}
+
+func newMessageRaw() *messageRaw {
+	return new(messageRaw)
 }
 
 // Connect
@@ -142,12 +156,19 @@ type messageConnect struct {
 	flagWillFlag     int
 	flagCleanSession int
 	keepAlive        int
+	clientId         string
+	willTopic        string
+	willMessage      []byte
+	userName         string
+	password         string
+}
 
-	clientId    string
-	willTopic   string
-	willMessage []byte
-	userName    string
-	password    string
+func newMessageConnect() *messageConnect {
+
+	m := new(messageConnect)
+	m.header.Type = MessageTypeConnect
+
+	return m
 }
 
 func (m *messageConnect) setHeader(h fixHeader) {
@@ -155,10 +176,10 @@ func (m *messageConnect) setHeader(h fixHeader) {
 }
 func (m *messageConnect) String() string {
 
-	s := "FixHeader: "
+	s := "Connect { "
 	s += m.header.String()
-	s += ", Variable Header: "
-	s += fmt.Sprintf("{ Name: %v, Level: %v, Flags: (UserName %v, Password %v, WillRetail %v, WillQos: %v, WillFlag: %v, CleanSession: %v ), KeepAlive: %v , ClientId: %v, willTopic; %v, willMessage: len(%v), Username: %v, Password: %v}",
+	s += ", Variable Header "
+	s += fmt.Sprintf("{ Name: %v, Level: %v, Flags: (UserName %v, Password %v, WillRetail %v, WillQos: %v, WillFlag: %v, CleanSession: %v ), KeepAlive: %v }",
 		m.name,
 		m.level,
 		m.flagUserName,
@@ -167,15 +188,18 @@ func (m *messageConnect) String() string {
 		m.flagWillQos,
 		m.flagWillFlag,
 		m.flagCleanSession,
-		m.keepAlive,
+		m.keepAlive)
+	s += fmt.Sprintf(", Payload { ClientId: %v, willTopic; %v, willMessage: len(%v), Username: %v, Password: %v}",
 		m.clientId,
 		m.willTopic,
 		len(m.willMessage),
 		m.userName,
 		m.password)
+
+	s += " }"
 	return s
 }
-func (m *messageConnect) decode(in []byte) (int, error) {
+func (m *messageConnect) decodePayload(in []byte) (int, error) {
 	var n int
 	var err error
 	var decodeLen = 0
@@ -263,9 +287,9 @@ func (m *messageConnect) decode(in []byte) (int, error) {
 
 	return decodeLen, nil
 }
-func (m *messageConnect) encode(out []byte) ([]byte, int, error) {
+func (m *messageConnect) encode(out []byte) ([]byte, error) {
 	panic("Don't used.")
-	return nil, 0, nil
+	return nil, nil
 }
 
 // ConnectAck
@@ -275,14 +299,40 @@ type messageConnectAck struct {
 	returnCode     int
 }
 
-func (m *messageConnectAck) decoe(in []byte) (int, error) {
+func newMessageConnectAck() *messageConnectAck {
+
+	m := new(messageConnectAck)
+	m.header.Type = MessageTypeConnectAck
+
+	m.returnCode = ConnectCodeOk
+
+	return m
+}
+
+func (m *messageConnectAck) decodePayload(in []byte) (int, error) {
 	panic("Don't used.")
 	return 0, nil
 }
-func (m *messageConnectAck) encode(out []byte) ([]byte, int, error) {
+func (m *messageConnectAck) encode(out []byte) ([]byte, error) {
+
+	if out == nil {
+		out = make([]byte, 0, 1024)
+	}
+
+	var err error
+
+	payload := make([]byte, 0)
 	b0 := byte(m.sessionPresent & 0x01)
 	b1 := byte(m.returnCode & 0xFF)
-	out = append(out, b0)
-	out = append(out, b1)
-	return out, 2, nil
+	payload = append(payload, b0)
+	payload = append(payload, b1)
+
+	m.header.Length = len(payload)
+	out, err = m.header.encode(out)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, payload...)
+
+	return out, nil
 }

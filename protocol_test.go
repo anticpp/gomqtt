@@ -81,13 +81,11 @@ func TestEncodeVariableInt32(t *testing.T) {
 		{1970835, []byte{0x93, 0xA5, 0x78}},
 		{8544166, []byte{0xA6, 0xBF, 0x89, 0x04}},
 
-		// Beyond maximum. Max 4 bytes should be encoded.
-		// 268435455 is maximum.
-		{268435455 + 1000, []byte{0xE7, 0x87, 0x80, 0x00}},
+		{268435455, []byte{0xFF, 0xFF, 0xFF, 0x7F}},
 	} {
 		var err error
-		buf := make([]byte, 0, 32)
-		buf, _, err = encodeVariableInt32(c.in, buf)
+		var buf []byte
+		buf, err = encodeVariableInt32(c.in, nil)
 		if err != nil {
 			t.Errorf("Encode %v. Error occurs %v", c.in, err)
 		} else if bytes.Compare(c.want, buf) != 0 {
@@ -133,8 +131,9 @@ func TestEncodeInt16(t *testing.T) {
 		{0xFFFF, []byte{0xFF, 0xFF}},
 	} {
 		var err error
-		out := make([]byte, 0, 32)
-		out, _, err = encodeInt16(c.in, out)
+		var out []byte
+
+		out, err = encodeInt16(c.in, nil)
 		if err != nil {
 			t.Errorf("Encode 0x%X. Error occurs %v", c.in, err)
 		} else if bytes.Compare(c.want, out) != 0 {
@@ -239,8 +238,8 @@ func TestEncodeString(t *testing.T) {
 				'a'}},
 	} {
 		var err error
-		out := make([]byte, 0, 32)
-		out, _, err = encodeString(c.in, out)
+		var out []byte
+		out, err = encodeString(c.in, nil)
 		if err != nil {
 			t.Errorf("Encode '%v'. Error occurs %v", c.in, err)
 		} else if bytes.Compare(c.want, out) != 0 {
@@ -280,9 +279,9 @@ func TestEncodeRawData(t *testing.T) {
 		{[]byte{'h', 'e', 'l', 'l', 'o'}, []byte{0x00, 0x05, 'h', 'e', 'l', 'l', 'o'}},
 	} {
 		var err error
+		var out []byte
 
-		out := make([]byte, 0, 32)
-		out, _, err = encodeRawData(c.in, out)
+		out, err = encodeRawData(c.in, nil)
 		if err != nil {
 			t.Fatalf("Encode fail. %v", c.in)
 		}
@@ -303,14 +302,15 @@ func TestFixHeaderEncodeDecode(t *testing.T) {
 		fixHeader{Type: 0, Dup: 0, Qos: 0, Retain: 1},
 		fixHeader{Type: 4, Dup: 1, Qos: 2, Retain: 1},
 	} {
-		var n int
 		var err error
+		var out []byte
 
-		out := make([]byte, 0, 32)
-		out, n, err = c.encode(out)
+		out, err = c.encode(nil)
 		if err != nil {
 			t.Fatalf("Encode fail. %v", c)
 		}
+
+		n := len(out)
 
 		c1 := fixHeader{}
 		var n1 int
