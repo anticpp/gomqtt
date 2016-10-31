@@ -63,6 +63,8 @@ const (
 
 type messageType interface {
 	setHeader(h fixHeader)
+	getHeader() fixHeader
+
 	decodePayload(in []byte) (int, error) // Decode payload
 	encode(out []byte) ([]byte, error)    // Encode header & payload
 }
@@ -76,7 +78,7 @@ type fixHeader struct {
 }
 
 func (h fixHeader) String() string {
-	return fmt.Sprintf("FixHeader {Type: %v, Dup: %v, Qos: %v, Retain: %v, Length:%v}",
+	return fmt.Sprintf("FixHeader { Type: %v, Dup: %v, Qos: %v, Retain: %v, Length:%v }",
 		MessageTypeString[h.Type],
 		h.Dup,
 		QosString[h.Qos],
@@ -84,7 +86,19 @@ func (h fixHeader) String() string {
 		h.Length)
 }
 
-func (h fixHeader) TypeName() string {
+func (h fixHeader) getType() int {
+	return h.Type
+}
+func (h fixHeader) getQos() int {
+	return h.Qos
+}
+func (h fixHeader) getDup() int {
+	return h.Dup
+}
+func (h fixHeader) getRetain() int {
+	return h.Retain
+}
+func (h fixHeader) typeName() string {
 	return MessageTypeString[h.Type]
 }
 
@@ -148,7 +162,7 @@ func newMessageRaw() *messageRaw {
 type messageConnect struct {
 	header fixHeader
 
-	// Variable header
+	// Variable Header
 	name             string
 	level            int
 	flagUserName     int
@@ -177,6 +191,9 @@ func newMessageConnect() *messageConnect {
 
 func (m *messageConnect) setHeader(h fixHeader) {
 	m.header = h
+}
+func (m *messageConnect) getHeader() fixHeader {
+	return m.header
 }
 func (m *messageConnect) String() string {
 
@@ -300,7 +317,7 @@ func (m *messageConnect) encode(out []byte) ([]byte, error) {
 type messageConnectAck struct {
 	header fixHeader
 
-	// Variable header
+	// Variable Header
 	sessionPresent int
 	returnCode     int
 }
@@ -313,6 +330,14 @@ func newMessageConnectAck() *messageConnectAck {
 	m.returnCode = ConnectCodeOk
 
 	return m
+}
+
+func (m *messageConnectAck) setHeader(h fixHeader) {
+	m.header = h
+}
+
+func (m *messageConnectAck) getHeader() fixHeader {
+	return m.header
 }
 
 func (m *messageConnectAck) decodePayload(in []byte) (int, error) {
@@ -347,7 +372,7 @@ func (m *messageConnectAck) encode(out []byte) ([]byte, error) {
 type messagePub struct {
 	header fixHeader
 
-	// Variable header
+	// Variable Header
 	topicName string
 	packetId  int
 
@@ -365,16 +390,19 @@ func newMessagePub() *messagePub {
 func (m *messagePub) String() string {
 	s := "Publish { "
 	s += m.header.String()
-	s += ", Variable header: { "
+	s += ", Variable Header: { "
 	s += fmt.Sprintf(" topic_name: %v, packet_id: %v", m.topicName, m.packetId)
 	s += " }"
-	s += fmt.Sprintf(", Payload(%v): bytes", len(m.data))
+	s += fmt.Sprintf(", Payload(%v): [...]", len(m.data))
 	s += " }"
 	return s
 }
 
 func (m *messagePub) setHeader(h fixHeader) {
 	m.header = h
+}
+func (m *messagePub) getHeader() fixHeader {
+	return m.header
 }
 
 func (m *messagePub) decodePayload(in []byte) (int, error) {
@@ -417,7 +445,7 @@ func (m *messagePub) encode(out []byte) ([]byte, error) {
 type messagePubAck struct {
 	header fixHeader
 
-	// Variable header
+	// Variable Header
 	packetId int
 }
 
@@ -428,8 +456,21 @@ func newMessagePubAck() *messagePubAck {
 	return m
 }
 
+func (m *messagePubAck) String() string {
+
+	s := "PublishAck { "
+	s += m.header.String()
+	s += fmt.Sprintf(", Variable Header { PacketId: %v }", m.packetId)
+	s += ", Payload(0): [...]"
+	s += " }"
+	return s
+}
+
 func (m *messagePubAck) setHeader(h fixHeader) {
 	m.header = h
+}
+func (m *messagePubAck) getHeader() fixHeader {
+	return m.header
 }
 
 func (m *messagePubAck) decodePayload(in []byte) (int, error) {
@@ -446,17 +487,17 @@ func (m *messagePubAck) encode(out []byte) ([]byte, error) {
 	var err error
 
 	payload := make([]byte, 0)
+	payload, err = encodeInt16(m.packetId, payload)
+	if err != nil {
+		return nil, err
+	}
 
 	m.header.Length = len(payload)
 	out, err = m.header.encode(out)
 	if err != nil {
 		return nil, err
 	}
-
-	out, err = encodeInt16(m.packetId, out)
-	if err != nil {
-		return nil, err
-	}
+	out = append(out, payload...)
 
 	return out, nil
 }
@@ -465,7 +506,7 @@ func (m *messagePubAck) encode(out []byte) ([]byte, error) {
 type messageSub struct {
 	header fixHeader
 
-	// Variable header
+	// Variable Header
 
 	// Payload
 }
@@ -476,12 +517,18 @@ func newMessageSub() *messageSub {
 
 	return m
 }
+func (m *messageSub) setHeader(h fixHeader) {
+	m.header = h
+}
+func (m *messageSub) getHeader() fixHeader {
+	return m.header
+}
 
 // SubscribeAck
 type messageSubAck struct {
 	header fixHeader
 
-	// Variable header
+	// Variable Header
 
 	// Payload
 }
@@ -491,4 +538,10 @@ func newMessageSubAck() *messageSubAck {
 	m.header.Type = MessageTypeSubAck
 
 	return m
+}
+func (m *messageSubAck) setHeader(h fixHeader) {
+	m.header = h
+}
+func (m *messageSubAck) getHeader() fixHeader {
+	return m.header
 }
