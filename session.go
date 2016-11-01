@@ -122,12 +122,30 @@ func (session *sessionType) frame() error {
 func (session *sessionType) serve_message() {
 
 	for session.normal() {
-		select {
-		case message := <-session.inMessage:
-			fmt.Printf("Received %v from %v\n", message.header.typeName(), session.connectInfo.clientId)
 
-			if message.header.Type == MessageTypePub {
-				session.handle_publish(message)
+		select {
+		case raw := <-session.inMessage:
+
+			var message messageType
+			var err error
+			fmt.Printf("Received %v from %v\n", raw.header.typeName(), session.connectInfo.clientId)
+
+			if raw.header.Type == MessageTypePub {
+				message = newMessagePub()
+			} else if raw.header.Type == MessageTypeDisconnect {
+				message = newMessageDisconnect()
+			}
+
+			message.setHeader(raw.header)
+			_, err = message.decodePayload(raw.payload)
+			if err != nil {
+				fmt.Printf("Decode %v payload fail, client %v\n", raw.header.typeName(), session.connectInfo.clientId)
+				break
+			}
+
+			fmt.Println(message)
+			if concret_message, ok := message.(*messagePub); ok {
+				session.handle_publish(concret_message)
 			}
 
 		case <-time.After(time.Second * 3):
@@ -139,21 +157,11 @@ func (session *sessionType) serve_message() {
 	fmt.Printf("End serve_message %v\n", session.conn.RemoteAddr())
 
 }
-func (session *sessionType) handle_publish(raw *messageRaw) {
-	var err error
+func (session *sessionType) handle_publish(message *messagePub) {
 
-	req := newMessagePub()
-	req.setHeader(raw.header)
-	_, err = req.decodePayload(raw.payload)
-	if err != nil {
-		fmt.Println("Decode publish payload fail, client %v", session.connectInfo.clientId)
-		return
-	}
-	fmt.Println(req)
-
-	if req.getHeader().getQos() > QoS0 {
+	if message.getHeader().getQos() > QoS0 {
 		resp := newMessagePubAck()
-		resp.packetId = req.packetId
+		resp.packetId = message.packetId
 
 		session.send_message(resp)
 	}

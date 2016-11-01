@@ -320,6 +320,9 @@ type messageConnectAck struct {
 	// Variable Header
 	sessionPresent int
 	returnCode     int
+
+	// Payload
+	// None
 }
 
 func newMessageConnectAck() *messageConnectAck {
@@ -447,6 +450,9 @@ type messagePubAck struct {
 
 	// Variable Header
 	packetId int
+
+	// Payload
+	// None
 }
 
 func newMessagePubAck() *messagePubAck {
@@ -461,7 +467,7 @@ func (m *messagePubAck) String() string {
 	s := "PublishAck { "
 	s += m.header.String()
 	s += fmt.Sprintf(", Variable Header { PacketId: %v }", m.packetId)
-	s += ", Payload(0): [...]"
+	s += ", Payload: None"
 	s += " }"
 	return s
 }
@@ -503,12 +509,19 @@ func (m *messagePubAck) encode(out []byte) ([]byte, error) {
 }
 
 // Subscribe
+type topicFilter struct {
+	topic string
+	qos   int
+}
+
 type messageSub struct {
 	header fixHeader
 
 	// Variable Header
+	packetId int
 
 	// Payload
+	filters []topicFilter
 }
 
 func newMessageSub() *messageSub {
@@ -517,11 +530,65 @@ func newMessageSub() *messageSub {
 
 	return m
 }
+
+func (m *messageSub) String() string {
+	s := "Subscribe { "
+	s += m.header.String()
+	s += fmt.Sprintf(", Variable Header { PacketId: %v }", m.packetId)
+	s += ", Payload { Filters: ["
+	for _, f := range m.filters {
+		fmt.Sprintf(" { topic: %v, qos: %v }, ", f.topic, f.qos)
+	}
+	s += "] }"
+	s += " }"
+	return s
+}
 func (m *messageSub) setHeader(h fixHeader) {
 	m.header = h
 }
 func (m *messageSub) getHeader() fixHeader {
 	return m.header
+}
+func (m *messageSub) decodePayload(in []byte) (int, error) {
+
+	var n int
+	var err error
+	var decodeLen = 0
+
+	m.packetId, n, err = decodeInt16(in)
+	if err != nil {
+		return 0, err
+	}
+	in = in[n:]
+	decodeLen += n
+
+	for {
+		var filter topicFilter
+
+		if len(in) == 0 {
+			break
+		}
+
+		filter.topic, n, err = decodeString(in)
+		if err != nil {
+			return 0, err
+		}
+		in = in[n:]
+		decodeLen += n
+
+		filter.qos = int(in[0])
+		in = in[1:]
+		decodeLen += 1
+
+		m.filters = append(m.filters, filter)
+
+	}
+
+	return decodeLen, nil
+}
+func (m *messageSub) encode(out []byte) ([]byte, error) {
+	panic("Don't use")
+	return nil, nil
 }
 
 // SubscribeAck
@@ -544,4 +611,49 @@ func (m *messageSubAck) setHeader(h fixHeader) {
 }
 func (m *messageSubAck) getHeader() fixHeader {
 	return m.header
+}
+
+// PublishRec
+
+// PublishRel
+
+// PublishComp
+
+// Disconnect
+type messageDisconnect struct {
+	header fixHeader
+
+	// Variable Header
+	// None
+
+	// Payload
+	// None
+}
+
+func newMessageDisconnect() *messageDisconnect {
+	m := new(messageDisconnect)
+	m.header.Type = MessageTypeDisconnect
+
+	return m
+}
+
+func (m *messageDisconnect) String() string {
+	s := "Disconnect { "
+	s += m.header.String()
+	s += ", Variable Header: None, Payload: None }"
+	return s
+}
+
+func (m *messageDisconnect) setHeader(h fixHeader) {
+	m.header = h
+}
+func (m *messageDisconnect) getHeader() fixHeader {
+	return m.header
+}
+func (m *messageDisconnect) decodePayload(in []byte) (int, error) {
+	return 0, nil
+}
+func (m *messageDisconnect) encode(out []byte) ([]byte, error) {
+	panic("Don't use")
+	return nil, nil
 }
