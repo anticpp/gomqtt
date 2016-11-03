@@ -528,6 +528,8 @@ func newMessageSub() *messageSub {
 	m := new(messageSub)
 	m.header.Type = MessageTypeSub
 
+	m.filters = []topicFilter{}
+
 	return m
 }
 
@@ -537,7 +539,7 @@ func (m *messageSub) String() string {
 	s += fmt.Sprintf(", Variable Header { PacketId: %v }", m.packetId)
 	s += ", Payload { Filters: ["
 	for _, f := range m.filters {
-		fmt.Sprintf(" { topic: %v, qos: %v }, ", f.topic, f.qos)
+		s += fmt.Sprintf(" { topic: %v, qos: %v }, ", f.topic, f.qos)
 	}
 	s += "] }"
 	s += " }"
@@ -555,6 +557,7 @@ func (m *messageSub) decodePayload(in []byte) (int, error) {
 	var err error
 	var decodeLen = 0
 
+	// Packet Identifier
 	m.packetId, n, err = decodeInt16(in)
 	if err != nil {
 		return 0, err
@@ -562,6 +565,7 @@ func (m *messageSub) decodePayload(in []byte) (int, error) {
 	in = in[n:]
 	decodeLen += n
 
+	// Filters
 	for {
 		var filter topicFilter
 
@@ -581,7 +585,6 @@ func (m *messageSub) decodePayload(in []byte) (int, error) {
 		decodeLen += 1
 
 		m.filters = append(m.filters, filter)
-
 	}
 
 	return decodeLen, nil
@@ -596,26 +599,72 @@ type messageSubAck struct {
 	header fixHeader
 
 	// Variable Header
+	packetId int
 
 	// Payload
+	returnCodes []int
 }
 
 func newMessageSubAck() *messageSubAck {
 	m := new(messageSubAck)
 	m.header.Type = MessageTypeSubAck
 
+	m.returnCodes = []int{}
+
 	return m
 }
+func (m *messageSubAck) String() string {
+	s := "SubscribeAck { "
+	s += m.header.String()
+	s += fmt.Sprintf(", Variable Header { PacketId: %v }", m.packetId)
+	s += ", Payload: { ReturnCodes: ["
+	for _, code := range m.returnCodes {
+		s += fmt.Sprintf("%v, ", code)
+	}
+	s += "] }"
+	s += "}"
+	return s
+}
+
 func (m *messageSubAck) setHeader(h fixHeader) {
 	m.header = h
 }
 func (m *messageSubAck) getHeader() fixHeader {
 	return m.header
 }
+func (m *messageSubAck) decodePayload(in []byte) (int, error) {
+	panic("Don't use")
+	return 0, nil
+}
+func (m *messageSubAck) encode(out []byte) ([]byte, error) {
+
+	if out == nil {
+		out = make([]byte, 0, 1024)
+	}
+
+	var err error
+
+	payload := make([]byte, 0)
+	payload, err = encodeInt16(m.packetId, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, code := range m.returnCodes {
+		payload = append(payload, byte(code))
+	}
+
+	m.header.Length = len(payload)
+	out, err = m.header.encode(out)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, payload...)
+
+	return out, nil
+}
 
 // PublishRec
-
-// PublishRel
 
 // PublishComp
 

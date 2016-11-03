@@ -124,16 +124,26 @@ func (session *sessionType) serve_message() {
 	for session.normal() {
 
 		select {
+
 		case raw := <-session.inMessage:
 
 			var message messageType
 			var err error
 			fmt.Printf("Received %v from %v\n", raw.header.typeName(), session.connectInfo.clientId)
 
-			if raw.header.Type == MessageTypePub {
+			if raw.header.getType() == MessageTypePub {
 				message = newMessagePub()
-			} else if raw.header.Type == MessageTypeDisconnect {
+			} else if raw.header.getType() == MessageTypeDisconnect {
 				message = newMessageDisconnect()
+			} else if raw.header.getType() == MessageTypeSub {
+				message = newMessageSub()
+			}
+
+			// None implement message
+			if message == nil {
+				fmt.Printf("[Error] None-implement message %v, client: %v\n", raw.header.typeName(), session.connectInfo.clientId)
+				session.close()
+				break
 			}
 
 			message.setHeader(raw.header)
@@ -144,12 +154,15 @@ func (session *sessionType) serve_message() {
 			}
 
 			fmt.Println(message)
+
 			if concret_message, ok := message.(*messagePub); ok {
 				session.handle_publish(concret_message)
+			} else if concret_message, ok := message.(*messageSub); ok {
+				session.handle_subscribe(concret_message)
 			}
 
 		case <-time.After(time.Second * 3):
-
+			break
 		}
 
 	}
@@ -167,11 +180,24 @@ func (session *sessionType) handle_publish(message *messagePub) {
 	}
 }
 
+func (session *sessionType) handle_subscribe(message *messageSub) {
+
+	resp := newMessageSubAck()
+	resp.packetId = message.packetId
+	for _, f := range message.filters {
+		//FIXME
+		resp.returnCodes = append(resp.returnCodes, f.qos)
+	}
+
+	session.send_message(resp)
+}
+
 func (session *sessionType) serve_write() {
 
 	for session.normal() {
 
 		select {
+
 		case message := <-session.outMessage:
 			fmt.Printf("Send %v to %v\n", message.getHeader().typeName(), session.connectInfo.clientId)
 			fmt.Println(message)
@@ -182,7 +208,8 @@ func (session *sessionType) serve_write() {
 			writeConnTotal(session.conn, data, 0)
 
 		case <-time.After(time.Second * 3):
-			fmt.Println("Timeout for serve_write")
+			break
+
 		}
 
 	}

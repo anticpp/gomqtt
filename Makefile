@@ -11,7 +11,8 @@ test:
 
 
 run:
-	go run broker/*
+	go build broker/*
+	./main
 
 sync:
 	rsync -avz ./ root@www.supergui.cn:/root/gowork/src/github.com/anticpp/gomqtt --delete --exclude=.git

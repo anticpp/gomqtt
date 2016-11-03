@@ -3,7 +3,7 @@ package gomqtt
 type sessionPoolType []*sessionType
 
 type eventTreeType struct {
-	// Topic to session
+	// Topic - Session
 	tree map[string]sessionPoolType
 
 	in chan *messagePub
